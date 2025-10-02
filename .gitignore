@@ -1,0 +1,34 @@
+# Arquivos de log
+*.log
+hs_err_pid*
+
+# Arquivos gerados pelo build do Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/
+
+# Arquivos específicos da IDE IntelliJ
+.idea/
+*.iml
+*.iws
+out/
+
+# Arquivos de sistema operacional
+.DS_Store
+Thumbs.db
+
+# Arquivos de configuração local e segredos
+# NUNCA envie tokens, senhas ou chaves de API para o repositório.
+# Mesmo que a abordagem principal seja por variáveis de ambiente,
+# adicionamos estes arquivos como uma camada extra de segurança.
+.env
+config.properties
+
+# Arquivos de cache do JDA (Java Discord API)
+.jda-cache/
