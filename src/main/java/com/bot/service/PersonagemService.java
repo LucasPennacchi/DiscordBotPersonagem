@@ -1,69 +1,92 @@
 package com.bot.service;
 
 import com.bot.model.Personagem;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.EntityManagerFactory;
-import jakarta.persistence.EntityTransaction;
 
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 /**
- * Camada de serviço responsável por toda a lógica de negócio e regras
- * relacionadas aos personagens.
- * <p>
- * Esta classe é o cérebro da aplicação, agindo como um intermediário entre a camada de
- * interface (comandos do Discord) e a camada de persistência de dados (JPA/Banco de Dados).
- * Ela garante que a lógica de negócio permaneça desacoplada de detalhes de implementação
- * externos, como a API do Discord ou o acesso direto ao banco de dados.
+ * Camada de serviço responsável por toda a lógica de negócio dos personagens.
+ * ESTA VERSÃO UTILIZA JDBC PURO para comunicação com o banco de dados.
  */
 public class PersonagemService {
 
-    /**
-     * A fábrica de EntityManagers, injetada no construtor.
-     * É utilizada para criar instâncias de EntityManager para cada operação de banco de dados.
-     * É uma dependência essencial e imutável para o serviço.
-     */
-    private final EntityManagerFactory emf;
+    private final String dbUrl;
+    private final String dbUser;
+    private final String dbPass;
 
     /**
-     * Constrói uma nova instância de PersonagemService.
-     *
-     * @param emf A instância de {@link EntityManagerFactory} necessária para a comunicação
-     * com o banco de dados. Não deve ser nula.
+     * Constrói uma nova instância de PersonagemService com as credenciais do banco.
      */
-    public PersonagemService(EntityManagerFactory emf) {
-        this.emf = emf;
+    public PersonagemService(String dbUrl, String dbUser, String dbPass) {
+        this.dbUrl = dbUrl;
+        this.dbUser = dbUser;
+        this.dbPass = dbPass;
+    }
+
+    private Connection getConnection() throws SQLException {
+        return DriverManager.getConnection(dbUrl, dbUser, dbPass);
     }
 
     /**
      * Busca um personagem no banco de dados pelo ID do usuário do Discord.
-     *
-     * @param userId O ID único do usuário do Discord a ser pesquisado.
-     * @return um {@link Optional} contendo o {@link Personagem} se encontrado,
-     * ou um Optional vazio caso contrário.
      */
     public Optional<Personagem> buscarPorUsuario(String userId) {
-        EntityManager em = emf.createEntityManager();
-        try {
-            // O método find é a forma mais direta de buscar uma entidade pela sua chave primária.
-            // Ele retorna null se a entidade não for encontrada.
-            Personagem personagem = em.find(Personagem.class, userId);
-            return Optional.ofNullable(personagem);
-        } finally {
-            // É crucial fechar o EntityManager após cada operação para liberar recursos.
-            em.close();
+        final String sql = "SELECT * FROM personagens WHERE user_id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, userId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return Optional.of(mapRowToPersonagem(rs));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Erro ao buscar personagem por usuário: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Salva (insere ou atualiza) uma entidade Personagem no banco de dados.
+     */
+    public void salvar(Personagem personagem) {
+        final String sql = """
+            INSERT INTO personagens (user_id, nome, nivel, foto_url, corpo, destreza, mente, vontade, pontos_disponiveis)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (user_id) DO UPDATE SET
+                nome = EXCLUDED.nome,
+                nivel = EXCLUDED.nivel,
+                foto_url = EXCLUDED.foto_url,
+                corpo = EXCLUDED.corpo,
+                destreza = EXCLUDED.destreza,
+                mente = EXCLUDED.mente,
+                vontade = EXCLUDED.vontade,
+                pontos_disponiveis = EXCLUDED.pontos_disponiveis
+            """;
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, personagem.getUserId());
+            pstmt.setString(2, personagem.getNome());
+            pstmt.setInt(3, personagem.getNivel());
+            pstmt.setString(4, personagem.getFotoUrl());
+            pstmt.setInt(5, personagem.getCorpo());
+            pstmt.setInt(6, personagem.getDestreza());
+            pstmt.setInt(7, personagem.getMente());
+            pstmt.setInt(8, personagem.getVontade());
+            pstmt.setInt(9, personagem.getPontosDisponiveis());
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("Erro ao salvar personagem: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
     /**
-     * Cria e persiste um novo personagem com valores padrão.
-     *
-     * @param userId O ID do usuário do Discord.
-     * @param nome   O nome do personagem.
-     * @param nivel  O nível inicial do personagem.
-     * @return O objeto {@link Personagem} recém-criado e salvo no banco.
+     * Cria um novo personagem com valores padrão e o persiste no banco de dados.
      */
     public Personagem criarPersonagem(String userId, String nome, int nivel) {
         Personagem novoPersonagem = new Personagem(userId, nome, nivel);
@@ -72,87 +95,37 @@ public class PersonagemService {
     }
 
     /**
-     * Salva (insere ou atualiza) uma entidade Personagem no banco de dados.
-     * Esta operação é transacional para garantir a integridade dos dados.
-     *
-     * @param personagem O objeto {@link Personagem} a ser salvo.
-     */
-    public void salvar(Personagem personagem) {
-        EntityManager em = emf.createEntityManager();
-        EntityTransaction transaction = em.getTransaction();
-        try {
-            transaction.begin();
-            // O método merge é seguro tanto para inserir novas entidades quanto para
-            // atualizar entidades existentes.
-            em.merge(personagem);
-            transaction.commit();
-        } catch (Exception e) {
-            // Se qualquer erro ocorrer, a transação é revertida para não corromper os dados.
-            if (transaction.isActive()) {
-                transaction.rollback();
-            }
-            // Logar ou relançar a exceção é uma boa prática.
-            e.printStackTrace();
-        } finally {
-            em.close();
-        }
-    }
-
-    /**
      * Deleta um personagem do banco de dados com base no ID do usuário do Discord.
-     * A operação é transacional.
-     *
-     * @param userId O ID do usuário do Discord cujo personagem será deletado.
      */
     public void deletar(String userId) {
-        EntityManager em = emf.createEntityManager();
-        EntityTransaction transaction = em.getTransaction();
-        try {
-            transaction.begin();
-            // Para remover, primeiro precisamos encontrar a entidade no contexto da persistência atual.
-            buscarPorUsuario(userId).ifPresent(personagem -> {
-                Personagem managedPersonagem = em.merge(personagem);
-                em.remove(managedPersonagem);
-            });
-            transaction.commit();
-        } catch (Exception e) {
-            if (transaction.isActive()) {
-                transaction.rollback();
-            }
+        final String sql = "DELETE FROM personagens WHERE user_id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, userId);
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("Erro ao deletar personagem: " + e.getMessage());
             e.printStackTrace();
-        } finally {
-            em.close();
         }
     }
 
     /**
      * Aumenta o nível de um personagem e adiciona os pontos de atributo correspondentes.
-     *
-     * @param personagem          O personagem que subirá de nível.
-     * @param niveisParaAdicionar A quantidade de níveis a serem adicionados.
      */
     public void uparNivel(Personagem personagem, int niveisParaAdicionar) {
-        if (niveisParaAdicionar <= 0) {
-            return; // Não faz nada se o número de níveis for zero ou negativo.
-        }
-        int nivelAtual = personagem.getNivel();
-        int pontosAtuais = personagem.getPontosDisponiveis();
+        if (niveisParaAdicionar <= 0) return;
 
-        int novosPontos = niveisParaAdicionar * 3;
-
-        personagem.setNivel(nivelAtual + niveisParaAdicionar);
-        personagem.setPontosDisponiveis(pontosAtuais + novosPontos);
-
+        personagem.setNivel(personagem.getNivel() + niveisParaAdicionar);
+        personagem.setPontosDisponiveis(personagem.getPontosDisponiveis() + (niveisParaAdicionar * 3));
         salvar(personagem);
     }
 
-
     /**
-     * Valida a regra de negócio que impede um atributo de ser mais de 3 pontos
+     * Valida a regra de negócio que impede um atributo de ser 3 ou mais pontos
      * maior que qualquer outro atributo.
      *
      * @param p                O personagem cujos atributos serão verificados.
-     * @param atributoAumentar O nome do atributo que se deseja aumentar (ex: "corpo", "destreza").
+     * @param atributoAumentar O nome do atributo que se deseja aumentar (ex: "corpo").
      * @return {@code true} se o aumento for permitido, {@code false} caso contrário.
      */
     public boolean podeAumentarAtributo(Personagem p, String atributoAumentar) {
@@ -191,11 +164,26 @@ public class PersonagemService {
 
         // Verifica a regra contra cada um dos outros atributos.
         for (int outroValor : outrosValores) {
-            if (valorAlvo - outroValor > 3) {
+            // Se a diferença for 3 ou mais, o aumento é negado.
+            if (valorAlvo - outroValor >= 3) {
                 return false; // A regra foi violada.
             }
         }
 
         return true; // A regra foi respeitada para todos os atributos.
+    }
+
+    private Personagem mapRowToPersonagem(ResultSet rs) throws SQLException {
+        Personagem p = new Personagem();
+        p.setUserId(rs.getString("user_id"));
+        p.setNome(rs.getString("nome"));
+        p.setNivel(rs.getInt("nivel"));
+        p.setFotoUrl(rs.getString("foto_url"));
+        p.setCorpo(rs.getInt("corpo"));
+        p.setDestreza(rs.getInt("destreza"));
+        p.setMente(rs.getInt("mente"));
+        p.setVontade(rs.getInt("vontade"));
+        p.setPontosDisponiveis(rs.getInt("pontos_disponiveis"));
+        return p;
     }
 }

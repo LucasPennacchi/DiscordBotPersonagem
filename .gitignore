@@ -28,7 +28,6 @@ Thumbs.db
 # Mesmo que a abordagem principal seja por variáveis de ambiente,
 # adicionamos estes arquivos como uma camada extra de segurança.
 .env
-config.properties
 
 # Arquivos de cache do JDA (Java Discord API)
 .jda-cache/

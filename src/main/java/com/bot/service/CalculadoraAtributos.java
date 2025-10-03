@@ -43,8 +43,8 @@ public final class CalculadoraAtributos {
         // --- Atributos derivados de CORPO ---
         // Força: Influencia o dano físico. Proporção 1:1 com Corpo.
         subAtributos.put("Força", personagem.getCorpo() * 1);
-        // Vida: Pontos de vida totais do personagem. Proporção 5:1 com Corpo.
-        subAtributos.put("Vida", personagem.getCorpo() * 5);
+        // Vida: Pontos de vida totais do personagem. Proporção 4:1 com Corpo.
+        subAtributos.put("Vida", personagem.getCorpo() * 4);
 
         // --- Atributos derivados de DESTREZA ---
         // Defesa: Capacidade de evitar ou reduzir dano. Proporção 1:1 com Destreza.
