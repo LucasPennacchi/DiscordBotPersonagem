@@ -83,7 +83,7 @@ public class UparCommand implements ICommand {
     public void execute(SlashCommandInteractionEvent event, PersonagemService service) {
         // A resposta é efêmera, pois é uma ação administrativa e o feedback
         // deve ser visível apenas para quem executou o comando.
-        event.deferReply().setEphemeral(true).queue();
+        event.deferReply(true).queue();
 
         User targetUser = event.getOption("usuario").getAsUser();
         int niveisParaAdicionar = event.getOption("niveis").getAsInt();

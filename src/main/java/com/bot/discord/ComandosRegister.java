@@ -30,6 +30,7 @@ public final class ComandosRegister {
                 new NomeCommand(),
                 new FotoCommand(),
                 new DeletarCommand(),
+                new MostrarCommand(),
                 // Comandos de Administrador
                 new VerCommand(),
                 new UparCommand()

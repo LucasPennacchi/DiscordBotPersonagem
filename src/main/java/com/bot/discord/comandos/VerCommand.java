@@ -51,7 +51,7 @@ public class VerCommand implements ICommand {
     @Override
     public void execute(SlashCommandInteractionEvent event, PersonagemService service) {
         // Não usamos o fluxo assíncrono aqui para manter o comando de admin simples e direto.
-        event.deferReply().queue();
+        event.deferReply(true).queue();
 
         User targetUser = event.getOption("usuario").getAsUser();
         Optional<Personagem> personagemOpt = service.buscarPorUsuario(targetUser.getId());

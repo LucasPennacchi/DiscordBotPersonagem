@@ -70,7 +70,7 @@ public class FotoCommand implements ICommand {
      */
     @Override
     public void execute(SlashCommandInteractionEvent event, PersonagemService service) {
-        event.deferReply().queue();
+        event.deferReply(true).queue();
 
         String userId = event.getUser().getId();
         Optional<Personagem> personagemOpt = service.buscarPorUsuario(userId);

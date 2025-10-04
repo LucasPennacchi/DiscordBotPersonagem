@@ -54,7 +54,7 @@ public class DeletarCommand implements ICommand {
     @Override
     public void execute(SlashCommandInteractionEvent event, PersonagemService service) {
         // A resposta é efêmera, pois a confirmação deve ser privada para o usuário.
-        event.deferReply().setEphemeral(true).queue();
+        event.deferReply(true).queue();
 
         String userId = event.getUser().getId();
 
