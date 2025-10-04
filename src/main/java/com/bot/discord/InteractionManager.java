@@ -2,46 +2,36 @@ package com.bot.discord;
 
 import com.bot.model.Personagem;
 import com.bot.service.PersonagemService;
+import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
+import net.dv8tion.jda.api.utils.FileUpload;
+
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Optional;
 
 /**
  * Classe auxiliar para tratar eventos de interação de componentes, como botões.
- * Esta classe centraliza a lógica de resposta a interações contínuas.
  */
 public final class InteractionManager {
 
-    /**
-     * Construtor privado para prevenir a instanciação da classe utilitária.
-     */
     private InteractionManager() {}
 
     /**
      * Processa todos os eventos de clique em botão ({@link ButtonInteractionEvent}).
-     * <p>
-     * Roteia a ação com base no ID customizado do botão. Contém a lógica para
-     * a confirmação de exclusão (/deletar) e para o incremento de atributos (/atributos).
-     * Inclui uma verificação de segurança para que apenas o usuário original possa interagir.
-     *
-     * @param event O objeto do evento de interação de botão.
-     * @param service A instância do {@link PersonagemService} para executar ações de negócio.
      */
     public static void handleButtonInteraction(ButtonInteractionEvent event, PersonagemService service) {
         String[] parts = event.getComponentId().split(":");
         String action = parts[0];
         String targetUserId = parts[1];
 
-        // Medida de segurança: Apenas o usuário que iniciou o comando pode interagir.
         if (!event.getUser().getId().equals(targetUserId)) {
             event.reply("Você não pode interagir com os botões de outro usuário.").setEphemeral(true).queue();
             return;
         }
 
-        // Deferir a edição para evitar que a interação falhe por tempo.
         event.deferEdit().queue();
 
-        // Roteador de ações com base no ID do botão
         switch (action) {
             case "delete-confirm":
                 service.deletar(targetUserId);
@@ -55,7 +45,7 @@ public final class InteractionManager {
                 break;
 
             case "attr-add":
-                String attributeToUpgrade = parts[2]; // Pega o nome do atributo do ID do botão
+                String attributeToUpgrade = parts[2];
                 handleAttributeUpgrade(event, service, targetUserId, attributeToUpgrade);
                 break;
         }
@@ -63,6 +53,8 @@ public final class InteractionManager {
 
     /**
      * Método auxiliar para lidar especificamente com a lógica de upgrade de atributos.
+     * Após cada clique, ele atualiza os dados, gera uma nova imagem e um novo embed,
+     * e então edita a mensagem original com o novo conteúdo.
      */
     private static void handleAttributeUpgrade(ButtonInteractionEvent event, PersonagemService service, String userId, String attributeToUpgrade) {
         Optional<Personagem> personagemOpt = service.buscarPorUsuario(userId);
@@ -74,7 +66,6 @@ public final class InteractionManager {
 
         Personagem p = personagemOpt.get();
 
-        // Verifica se há pontos e se a regra de negócio permite o aumento
         if (p.getPontosDisponiveis() > 0 && service.podeAumentarAtributo(p, attributeToUpgrade)) {
             p.setPontosDisponiveis(p.getPontosDisponiveis() - 1);
             switch (attributeToUpgrade) {
@@ -86,11 +77,25 @@ public final class InteractionManager {
             service.salvar(p);
         }
 
-        // Atualiza o embed e os botões (desabilitando-os se os pontos acabarem)
-        boolean hasPoints = p.getPontosDisponiveis() > 0;
-        event.getHook().editOriginalEmbeds(EmbedManager.buildAtributosEmbed(p))
-                .setComponents(
-                        event.getMessage().getActionRows().get(0).withDisabled(!hasPoints)
-                ).queue();
+        try {
+            // 1. Gera a imagem NOVAMENTE com os valores atualizados
+            byte[] newImageBytes = ImageGenerator.generatePersonagemAttributesImage(p);
+
+            // 2. Constrói o embed NOVAMENTE, passando a nova imagem
+            MessageEmbed newEmbed = EmbedManager.buildAtributosEmbed(p, newImageBytes);
+
+            boolean hasPoints = p.getPontosDisponiveis() > 0;
+
+            // 3. Edita a mensagem original, substituindo a imagem e o embed
+            event.getHook().editOriginalAttachments(FileUpload.fromData(newImageBytes, "atributos.png"))
+                    .setEmbeds(newEmbed)
+                    .setComponents(event.getMessage().getActionRows().get(0).withDisabled(!hasPoints))
+                    .queue();
+
+        } catch (Exception e) { // A correção é adicionar este bloco try-catch
+            System.err.println("Erro ao re-gerar imagem de atributos: " + e.getMessage());
+            e.printStackTrace();
+            event.getHook().sendMessage("Ocorreu um erro ao atualizar a ficha.").setEphemeral(true).queue();
+        }
     }
 }

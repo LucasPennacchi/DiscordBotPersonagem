@@ -1,39 +1,27 @@
 package com.bot.discord.comandos;
 
 import com.bot.discord.EmbedManager;
+import com.bot.discord.ImageGenerator;
 import com.bot.model.Personagem;
 import com.bot.service.PersonagemService;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.utils.FileUpload;
 
 import java.util.Optional;
 
 /**
  * Implementa a lógica para o comando /personagem.
- * <p>
- * Este comando é responsável por exibir a ficha de personagem do usuário que o invocou.
- * Ele não possui opções e sua função principal é buscar os dados do personagem e
- * utilizar o {@link EmbedManager} para formatar e exibir essas informações de
- * forma visualmente agradável em uma mensagem Embed.
+ * Exibe a ficha de personagem do usuário, incluindo uma imagem dinâmica dos atributos.
  */
 public class PersonagemCommand implements ICommand {
 
-    /**
-     * Retorna o nome do comando.
-     *
-     * @return O nome "personagem".
-     */
     @Override
     public String getName() {
         return "personagem";
     }
 
-    /**
-     * Retorna a descrição do comando.
-     *
-     * @return A descrição "Mostra a ficha do seu personagem.".
-     */
     @Override
     public String getDescription() {
         return "Mostra a ficha do seu personagem.";
@@ -41,17 +29,11 @@ public class PersonagemCommand implements ICommand {
 
     /**
      * Executa a lógica do comando /personagem.
-     * <p>
-     * O fluxo de execução é o seguinte:
-     * 1. Adia a resposta para evitar timeouts.
-     * 2. Obtém o usuário que invocou o comando.
-     * 3. Busca o personagem associado a esse usuário no banco de dados através do serviço.
-     * 4. Se o personagem for encontrado, delega a criação do Embed para o {@link EmbedManager}
-     * e envia a ficha como resposta.
-     * 5. Se o personagem não for encontrado, envia uma mensagem de ajuda privada (efêmera)
-     * instruindo o usuário a usar o comando /criar.
+     * O fluxo busca o personagem do usuário. Se encontrado, chama o {@link ImageGenerator}
+     * para criar a imagem dos atributos e o {@link EmbedManager} para criar o embed
+     * de texto que inclui a imagem. Por fim, envia ambos na mesma resposta.
      *
-     * @param event   O objeto do evento de interação, contendo todas as informações da invocação.
+     * @param event   O objeto do evento de interação.
      * @param service A instância do serviço de personagem para a lógica de negócio.
      */
     @Override
@@ -61,18 +43,29 @@ public class PersonagemCommand implements ICommand {
         User user = event.getUser();
         Optional<Personagem> personagemOpt = service.buscarPorUsuario(user.getId());
 
-        // A abordagem funcional com ifPresentOrElse deixa o código mais limpo.
         personagemOpt.ifPresentOrElse(
-                // Ação a ser executada se o personagem EXISTIR
                 personagem -> {
-                    MessageEmbed embed = EmbedManager.buildPersonagemEmbed(personagem, user);
-                    event.getHook().sendMessageEmbeds(embed).queue();
+                    try {
+                        // 1. Gera a imagem dinâmica com os atributos
+                        byte[] imageBytes = ImageGenerator.generatePersonagemAttributesImage(personagem);
+
+                        // 2. Constrói o embed de texto, passando os bytes da imagem
+                        MessageEmbed embed = EmbedManager.buildPersonagemEmbed(personagem, user, imageBytes);
+
+                        // 3. Envia a imagem como arquivo (FileUpload) e o embed juntos.
+                        // O nome "ficha_atributos.png" deve corresponder ao usado no EmbedManager.
+                        event.getHook().sendFiles(FileUpload.fromData(imageBytes, "ficha_atributos.png"))
+                                .addEmbeds(embed)
+                                .queue();
+
+                    } catch (Exception e) { // Captura Exception genérica por causa do Batik
+                        System.err.println("Erro ao gerar ou enviar a imagem da ficha: " + e.getMessage());
+                        e.printStackTrace();
+                        event.getHook().sendMessage("Ocorreu um erro ao gerar a imagem da sua ficha.").setEphemeral(true).queue();
+                    }
                 },
-                // Ação a ser executada se o personagem NÃO EXISTIR
-                () -> {
-                    event.getHook().sendMessage("Você não possui um personagem. Use `/criar` para começar sua jornada!")
-                            .setEphemeral(true).queue();
-                }
+                () -> event.getHook().sendMessage("Você não possui um personagem. Use `/criar` para começar sua jornada!")
+                        .setEphemeral(true).queue()
         );
     }
 }
