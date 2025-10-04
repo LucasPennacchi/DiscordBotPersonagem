@@ -14,14 +14,11 @@ import java.util.Map;
  */
 public final class EmbedManager {
 
-    /**
-     * Construtor privado para prevenir a instanciação da classe utilitária.
-     */
     private EmbedManager() {}
 
     /**
-     * Constrói o Embed padrão para exibir a ficha de um personagem.
-     * Aceita os bytes da imagem dos atributos para incluí-la como imagem principal (abaixo do texto).
+     * Constrói o Embed para a ficha de personagem com o layout refinado,
+     * espelhando o exemplo do Paint.
      *
      * @param p O objeto Personagem com os dados.
      * @param user O usuário do Discord associado.
@@ -30,62 +27,41 @@ public final class EmbedManager {
      */
     public static MessageEmbed buildPersonagemEmbed(Personagem p, User user, byte[] attributeImageBytes) {
         EmbedBuilder eb = new EmbedBuilder();
+
+        // <Personagem de usuario x>
         eb.setAuthor("Ficha de " + user.getName(), null, user.getEffectiveAvatarUrl());
-        eb.setTitle(p.getNome());
+
+        // <Nome> <Nível>
+        eb.setTitle(p.getNome() + "  |  Nível " + p.getNivel());
         eb.setColor(Color.CYAN);
-        eb.setThumbnail(p.getFotoUrl()); // Foto customizada do personagem (canto superior direito)
-        eb.setFooter("ID do Personagem (Usuário): " + p.getUserId());
 
-        eb.addField("Nível", String.valueOf(p.getNivel()), true);
-        eb.addField("Pontos Disponíveis", String.valueOf(p.getPontosDisponiveis()), true);
-        eb.addBlankField(false); // Adiciona um espaço para melhor layout
+        // --- MUDANÇA 1: Foto do personagem no canto superior direito (thumbnail) ---
+        // Se o personagem tiver uma foto_url definida, use-a. Caso contrário, não define thumbnail.
+        if (p.getFotoUrl() != null && !p.getFotoUrl().trim().isEmpty()) {
+            eb.setThumbnail(p.getFotoUrl());
+        }
 
-        String atributosPrincipais = String.format(
-                "**Corpo:** %d\n**Destreza:** %d\n**Mente:** %d\n**Vontade:** %d",
-                p.getCorpo(), p.getDestreza(), p.getMente(), p.getVontade()
-        );
-        eb.addField("Atributos Principais", atributosPrincipais, true);
-
+        // <Atributos Secundários> (posição: campo normal)
         Map<String, Integer> subAtributos = CalculadoraAtributos.calcularSubAtributos(p);
         StringBuilder subAtributosStr = new StringBuilder();
         for (Map.Entry<String, Integer> entry : subAtributos.entrySet()) {
             subAtributosStr.append(String.format("**%s:** %d\n", entry.getKey(), entry.getValue()));
         }
-        eb.addField("Atributos Secundários", subAtributosStr.toString(), true);
+        // Adiciona um título mais descritivo para os sub-atributos, ou você pode deixar vazio se preferir.
+        eb.addField("Atributos Secundários", subAtributosStr.toString(), false);
 
-        // Adiciona a imagem de atributos na parte inferior do embed
-        // "attachment://ficha_atributos.png" diz ao Discord para usar o anexo com este nome.
+        // --- MUDANÇA 2: Imagem da ficha_template como imagem principal (centro do embed) ---
+        // Isso coloca a imagem grande na parte inferior do embed, como no seu exemplo do Paint.
         eb.setImage("attachment://ficha_atributos.png");
 
-        return eb.build();
-    }
+        // <Pontos disponíveis, se tiver algum, aumenta a fonte>
+        if (p.getPontosDisponiveis() > 0) {
+            String pontosTexto = String.format("✨ **Você tem %d pontos disponíveis para gastar!** ✨", p.getPontosDisponiveis());
+            eb.addField("", pontosTexto, false); // Campo vazio para um texto grande e centralizado.
+        }
 
-    /**
-     * Constrói o Embed específico para a interface de gerenciamento de atributos.
-     * Aceita os bytes da imagem dos atributos para incluí-la como miniatura (thumbnail).
-     *
-     * @param p O objeto {@link Personagem} para exibir os pontos e atributos atuais.
-     * @param attributeImageBytes Os bytes da imagem gerada de atributos.
-     * @return Um objeto {@link MessageEmbed} construído para a interface de atributos.
-     */
-    public static MessageEmbed buildAtributosEmbed(Personagem p, byte[] attributeImageBytes) {
-        EmbedBuilder eb = new EmbedBuilder();
-        eb.setTitle("Distribuição de Pontos de Atributo");
-        eb.setColor(Color.YELLOW);
-
-        eb.setDescription("Clique no botão correspondente para aumentar um atributo.\n\nVocê tem **"
-                + p.getPontosDisponiveis() + "** pontos disponíveis.");
-
-        // Adiciona a imagem de atributos como miniatura (thumbnail) do embed (canto superior direito)
-        // "attachment://atributos.png" diz ao Discord para usar o anexo com este nome.
-        eb.setThumbnail("attachment://atributos.png");
-
-        eb.addField("Corpo", String.valueOf(p.getCorpo()), true);
-        eb.addField("Destreza", String.valueOf(p.getDestreza()), true);
-        eb.addField("Mente", String.valueOf(p.getMente()), true);
-        eb.addField("Vontade", String.valueOf(p.getVontade()), true);
-
-        eb.setFooter("Lembre-se: um atributo não pode ter 3 ou mais pontos de diferença dos outros.");
+        // <footnote de id>
+        eb.setFooter("ID do Personagem (Usuário): " + p.getUserId());
 
         return eb.build();
     }

@@ -3,6 +3,7 @@ package com.bot.discord;
 import com.bot.model.Personagem;
 import com.bot.service.PersonagemService;
 import net.dv8tion.jda.api.entities.MessageEmbed;
+import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.utils.FileUpload;
 
@@ -57,7 +58,9 @@ public final class InteractionManager {
      * e então edita a mensagem original com o novo conteúdo.
      */
     private static void handleAttributeUpgrade(ButtonInteractionEvent event, PersonagemService service, String userId, String attributeToUpgrade) {
+        User user = event.getUser(); // Precisamos do objeto User para o embed
         Optional<Personagem> personagemOpt = service.buscarPorUsuario(userId);
+
         if (personagemOpt.isEmpty()) {
             event.getHook().editOriginal("Erro: Personagem não encontrado.")
                     .setComponents(Collections.emptyList()).queue();
@@ -78,21 +81,21 @@ public final class InteractionManager {
         }
 
         try {
-            // 1. Gera a imagem NOVAMENTE com os valores atualizados
             byte[] newImageBytes = ImageGenerator.generatePersonagemAttributesImage(p);
+            // AGORA, chamamos o buildPersonagemEmbed para remontar a ficha completa
+            MessageEmbed newEmbed = EmbedManager.buildPersonagemEmbed(p, user, newImageBytes);
 
-            // 2. Constrói o embed NOVAMENTE, passando a nova imagem
-            MessageEmbed newEmbed = EmbedManager.buildAtributosEmbed(p, newImageBytes);
+            var hook = event.getHook().editOriginalAttachments(FileUpload.fromData(newImageBytes, "ficha_atributos.png"))
+                    .setEmbeds(newEmbed);
 
-            boolean hasPoints = p.getPontosDisponiveis() > 0;
+            // Se os pontos acabarem, removemos a fileira de botões.
+            if (p.getPontosDisponiveis() <= 0) {
+                hook.setComponents(Collections.emptyList());
+            }
 
-            // 3. Edita a mensagem original, substituindo a imagem e o embed
-            event.getHook().editOriginalAttachments(FileUpload.fromData(newImageBytes, "atributos.png"))
-                    .setEmbeds(newEmbed)
-                    .setComponents(event.getMessage().getActionRows().get(0).withDisabled(!hasPoints))
-                    .queue();
+            hook.queue();
 
-        } catch (Exception e) { // A correção é adicionar este bloco try-catch
+        } catch (Exception e) {
             System.err.println("Erro ao re-gerar imagem de atributos: " + e.getMessage());
             e.printStackTrace();
             event.getHook().sendMessage("Ocorreu um erro ao atualizar a ficha.").setEphemeral(true).queue();

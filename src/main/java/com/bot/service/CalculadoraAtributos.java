@@ -44,7 +44,7 @@ public final class CalculadoraAtributos {
         // Força: Influencia o dano físico. Proporção 1:1 com Corpo.
         subAtributos.put("Força", personagem.getCorpo() * 1);
         // Vida: Pontos de vida totais do personagem. Proporção 4:1 com Corpo.
-        subAtributos.put("Vida", personagem.getCorpo() * 4);
+        subAtributos.put("Vida", 10 + (personagem.getCorpo() * 4));
 
         // --- Atributos derivados de DESTREZA ---
         // Defesa: Capacidade de evitar ou reduzir dano. Proporção 1:1 com Destreza.
@@ -59,8 +59,8 @@ public final class CalculadoraAtributos {
         subAtributos.put("Percepção", personagem.getMente() * 1);
 
         // --- Atributos derivados de VONTADE ---
-        // Foco: Recurso para usar habilidades especiais. Proporção 3:1 com Vontade.
-        subAtributos.put("Foco", personagem.getVontade() * 3);
+        // Foco: Recurso para usar habilidades especiais. Proporção 2:1 com Vontade.
+        subAtributos.put("Foco", 3 + (personagem.getVontade() * 2));
         // Resistência Mental (MR): Defesa contra ataques mentais. Proporção 1:1 com Vontade.
         subAtributos.put("Resistência Mental (MR)", personagem.getVontade() * 1);
 

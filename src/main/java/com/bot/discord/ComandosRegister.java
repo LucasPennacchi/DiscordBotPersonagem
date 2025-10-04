@@ -1,6 +1,6 @@
 package com.bot.discord;
 
-import com.bot.discord.comandos.*; // Garante que todas as suas classes de comando sejam importadas
+import com.bot.discord.comandos.*;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.interactions.commands.DefaultMemberPermissions;
@@ -12,26 +12,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Classe utilitária responsável por descobrir, construir e registrar
- * todos os slash commands da aplicação na API do Discord.
- * <p>
- * Esta classe centraliza o registro de comandos, tornando o processo de
- * adicionar novos comandos mais simples e organizado.
+ * Responsável por registrar todos os slash commands na API do Discord.
  */
 public final class ComandosRegister {
 
-    /**
-     * Construtor privado para prevenir a instanciação da classe utilitária.
-     */
     private ComandosRegister() {}
 
     /**
      * Carrega e instancia todos os comandos disponíveis na aplicação.
-     * <p>
-     * <b>Importante:</b> Para que um novo comando seja registrado e funcione,
-     * uma nova instância dele deve ser adicionada a esta lista.
-     *
-     * @return Uma lista contendo uma instância de cada comando que implementa {@link ICommand}.
+     * Para que um novo comando funcione, ele deve ser adicionado a esta lista.
      */
     public static List<ICommand> loadCommands() {
         return List.of(
@@ -41,8 +30,6 @@ public final class ComandosRegister {
                 new NomeCommand(),
                 new FotoCommand(),
                 new DeletarCommand(),
-                new AtributosCommand(),
-
                 // Comandos de Administrador
                 new VerCommand(),
                 new UparCommand()
@@ -50,14 +37,8 @@ public final class ComandosRegister {
     }
 
     /**
-     * Constrói a lista de dados dos comandos e os envia para o Discord para
-     * serem registrados ou atualizados.
-     * <p>
-     * Este método lê a lista de comandos de {@link #loadCommands()}, constrói
-     * a estrutura de dados que a JDA necessita (incluindo nome, descrição, opções
-     * e permissões) e enfileira a requisição de atualização para o Discord.
-     *
-     * @param jda A instância principal da JDA, necessária para se comunicar com o Discord.
+     * Constrói e envia a lista de comandos para o Discord registrar/atualizar.
+     * @param jda A instância principal da JDA.
      */
     public static void register(JDA jda) {
         List<ICommand> commands = loadCommands();
@@ -67,16 +48,12 @@ public final class ComandosRegister {
             SlashCommandData slashCommand = Commands.slash(command.getName(), command.getDescription());
             slashCommand.addOptions(command.getOptions());
 
-            // Verifica se o comando é restrito para administradores
             if (command.isAdminCommand()) {
                 slashCommand.setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.ADMINISTRATOR));
             }
-
             commandDataList.add(slashCommand);
         }
 
-        // Envia a lista de comandos para o Discord.
-        // O Discord irá criar os novos e atualizar os existentes.
         jda.updateCommands().addCommands(commandDataList).queue(
                 success -> System.out.println("Comandos globais registrados com sucesso!"),
                 error -> System.err.println("Erro ao registrar comandos globais: " + error)
