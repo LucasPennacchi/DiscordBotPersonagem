@@ -50,25 +50,27 @@ public class VerCommand implements ICommand {
      */
     @Override
     public void execute(SlashCommandInteractionEvent event, PersonagemService service) {
+        // Não usamos o fluxo assíncrono aqui para manter o comando de admin simples e direto.
         event.deferReply().queue();
+
         User targetUser = event.getOption("usuario").getAsUser();
         Optional<Personagem> personagemOpt = service.buscarPorUsuario(targetUser.getId());
 
         personagemOpt.ifPresentOrElse(
                 personagem -> {
                     try {
-                        // 1. Gera a imagem dinâmica com os atributos do personagem alvo
                         byte[] imageBytes = ImageGenerator.generatePersonagemAttributesImage(personagem);
 
-                        // 2. Constrói o embed, passando o personagem, o usuário alvo e a imagem gerada
-                        MessageEmbed embed = EmbedManager.buildPersonagemEmbed(personagem, targetUser, imageBytes);
 
-                        // 3. Envia a imagem como arquivo e o embed juntos
+                        // Chamamos o método com o nome correto: buildPersonagemEmbedWithImage
+                        // Ele não precisa mais dos bytes da imagem como parâmetro.
+                        MessageEmbed embed = EmbedManager.buildPersonagemEmbedWithImage(personagem, targetUser);
+
                         event.getHook().sendFiles(FileUpload.fromData(imageBytes, "ficha_atributos.png"))
                                 .addEmbeds(embed)
                                 .queue();
 
-                    } catch (Exception e) { // Captura Exception genérica por causa do Batik
+                    } catch (Exception e) {
                         System.err.println("Erro ao gerar ou enviar a imagem da ficha (comando /ver): " + e.getMessage());
                         e.printStackTrace();
                         event.getHook().sendMessage("Ocorreu um erro ao gerar a imagem da ficha.").setEphemeral(true).queue();

@@ -9,6 +9,9 @@ import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 /**
  * Classe principal e ponto de entrada (entrypoint) da aplicação do bot de Discord.
  * <p>
@@ -22,6 +25,10 @@ import net.dv8tion.jda.api.requests.GatewayIntent;
  * </ul>
  */
 public class Bot {
+
+    // Cria um pool de threads que cresce conforme a necessidade.
+    // Usaremos isso para todas as nossas tarefas assíncronas pesadas.
+    public static final ExecutorService EXECUTOR = Executors.newCachedThreadPool();
 
     /**
      * Construtor privado para prevenir a instanciação desta classe utilitária.
@@ -38,6 +45,11 @@ public class Bot {
      * ficar pronta (lançado por {@code awaitReady()}).
      */
     public static void main(String[] args) throws InterruptedException {
+
+        // Hook de Desligamento
+        // Garante que, ao fechar o bot (ex: com Ctrl+C), o pool de threads
+        // seja desligado de forma organizada.
+        Runtime.getRuntime().addShutdownHook(new Thread(EXECUTOR::shutdown));
 
         // --- 1. Carregar Configurações do arquivo .env ---
         // A biblioteca Dotenv procura por um arquivo .env na raiz do projeto e o carrega.

@@ -41,16 +41,16 @@ public final class CalculadoraAtributos {
         Map<String, Integer> subAtributos = new LinkedHashMap<>();
 
         // --- Atributos derivados de CORPO ---
-        // Força: Influencia o dano físico. Proporção 1:1 com Corpo.
-        subAtributos.put("Força", personagem.getCorpo() * 1);
+        // Força: Influencia o dano físico. Proporção 2:1 com Corpo.
+        subAtributos.put("Força", personagem.getCorpo() * 2);
         // Vida: Pontos de vida totais do personagem. Proporção 4:1 com Corpo.
         subAtributos.put("Vida", 10 + (personagem.getCorpo() * 4));
 
         // --- Atributos derivados de DESTREZA ---
         // Defesa: Capacidade de evitar ou reduzir dano. Proporção 1:1 com Destreza.
         subAtributos.put("Defesa", personagem.getDestreza() * 1);
-        // Locomoção: Distância que o personagem pode se mover. Proporção 2:1 com Destreza.
-        subAtributos.put("Locomoção", personagem.getDestreza() * 2);
+        // Locomoção: Distância que o personagem pode se mover. Proporção 1:1 com Destreza.
+        subAtributos.put("Deslocamento", 4 + (personagem.getDestreza() * 2));
 
         // --- Atributos derivados de MENTE ---
         // Intelecto: Capacidade de raciocínio e conhecimento. Proporção 1:1 com Mente.
