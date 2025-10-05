@@ -34,26 +34,29 @@ public class Bot {
             }
         }));
 
-        // Lemos as variáveis diretamente do ambiente do servidor (configurado no Render).
-        // Não usamos mais a biblioteca Dotenv.
         String discordToken = System.getenv("DISCORD_TOKEN");
-        String dbUrl = System.getenv("DB_URL");
-        // O Render fornece usuário e senha dentro da URL, então não precisamos de variáveis separadas para eles.
+        String databaseUrl = System.getenv("DB_URL"); // Usamos a variável do Render
         String appUrl = System.getenv("APP_URL");
 
-        if (discordToken == null || dbUrl == null) {
+        if (discordToken == null || databaseUrl == null) {
             System.err.println("ERRO FATAL: As variáveis de ambiente DISCORD_TOKEN e/ou DB_URL não foram encontradas.");
             return;
         }
 
         APP_URL = appUrl;
 
-        // O Render configura o DB_URL com usuário e senha, mas nosso service espera separado.
-        // Vamos extrair as credenciais da URL do Render.
-        // Formato esperado: postgres://user:password@host:port/database
-        String dbUser = dbUrl.substring(dbUrl.indexOf("//") + 2, dbUrl.indexOf(":", dbUrl.indexOf("//") + 2));
-        String dbPass = dbUrl.substring(dbUrl.indexOf(":", dbUrl.indexOf(dbUser)) + 1, dbUrl.indexOf("@"));
-        String jdbcUrl = "jdbc:" + dbUrl.substring(0, dbUrl.indexOf("//")) + dbUrl.substring(dbUrl.indexOf("@") + 1);
+        // Extrai as credenciais da URL do Render de forma mais segura.
+        // Exemplo de URL do Render: postgres://user:password@host:port/database
+        String tempUrl = databaseUrl.substring("postgres://".length());
+        String[] credentialsAndHost = tempUrl.split("@");
+        String[] userAndPassword = credentialsAndHost[0].split(":");
+        String hostAndDb = credentialsAndHost[1];
+
+        String dbUser = userAndPassword[0];
+        String dbPass = userAndPassword[1];
+        String jdbcUrl = "jdbc:postgresql://" + hostAndDb;
+
+        System.out.println("Conectando ao banco de dados com o usuário: " + dbUser + " no host: " + hostAndDb);
 
         PersonagemService personagemService = new PersonagemService(jdbcUrl, dbUser, dbPass);
 
@@ -64,7 +67,6 @@ public class Bot {
                 .build()
                 .awaitReady();
 
-        // A porta 10000 é frequentemente usada por padrão em serviços de hospedagem como o Render.
         int wsPort = 10000;
         wsServer = new WebSocketServerManager(wsPort, jda);
         wsServer.start();
