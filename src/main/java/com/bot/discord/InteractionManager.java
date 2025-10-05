@@ -12,8 +12,9 @@ import java.util.Collections;
 import java.util.Optional;
 
 /**
- * Classe auxiliar para tratar eventos de interação de componentes, como botões.
- * Esta classe centraliza a lógica de resposta a interações contínuas.
+ * Classe utilitária para tratar eventos de interação de componentes, como botões.
+ * Esta classe centraliza a lógica de resposta a interações contínuas, agindo como
+ * um roteador para diferentes tipos de cliques em botões.
  */
 public final class InteractionManager {
 
@@ -21,7 +22,11 @@ public final class InteractionManager {
 
     /**
      * Processa todos os eventos de clique em botão ({@link ButtonInteractionEvent}).
-     * Roteia a ação com base no ID customizado do botão para a lógica apropriada.
+     * <p>
+     * Ele analisa o ID customizado do botão para determinar a ação a ser tomada
+     * (ex: "delete-confirm", "attr-add", "reflexo-btn") e delega para o método
+     * de tratamento apropriado. Também inclui uma verificação de segurança para
+     * garantir que apenas o usuário que iniciou o comando possa clicar nos botões.
      *
      * @param event O objeto do evento de interação de botão.
      * @param service A instância do {@link PersonagemService} para executar ações de negócio.
@@ -31,26 +36,21 @@ public final class InteractionManager {
         String action = parts[0];
         String targetUserId = parts[1];
 
+        // Medida de segurança: Apenas o usuário que pode interagir com os botões.
         if (!event.getUser().getId().equals(targetUserId)) {
             event.reply("Você não pode interagir com os botões de outro usuário.").setEphemeral(true).queue();
             return;
         }
 
-        event.deferEdit().queue();
-
+        // Roteia a ação com base na primeira parte do ID do botão.
         switch (action) {
-            case "delete-confirm":
-                service.deletar(targetUserId);
-                event.getHook().editOriginal("Personagem deletado com sucesso.")
-                        .setComponents(Collections.emptyList()).queue();
-                break;
-
-            case "delete-cancel":
-                event.getHook().editOriginal("Ação cancelada.")
-                        .setComponents(Collections.emptyList()).queue();
+            case "delete-confirm", "delete-cancel":
+                event.deferEdit().queue();
+                handleDeleteConfirmation(event, service, action, targetUserId);
                 break;
 
             case "attr-add":
+                // deferEdit() é chamado dentro do método auxiliar
                 String attributeToUpgrade = parts[2];
                 handleAttributeUpgrade(event, service, targetUserId, attributeToUpgrade);
                 break;
@@ -58,10 +58,26 @@ public final class InteractionManager {
     }
 
     /**
-     * Lida especificamente com a lógica de upgrade de atributos após um clique no botão.
-     * Atualiza o personagem, gera uma nova imagem e edita a mensagem original com a ficha completa.
+     * Lida com a confirmação (ou cancelamento) da exclusão de um personagem.
+     */
+    private static void handleDeleteConfirmation(ButtonInteractionEvent event, PersonagemService service, String action, String userId) {
+        if ("delete-confirm".equals(action)) {
+            service.deletar(userId);
+            event.getHook().editOriginal("Personagem deletado com sucesso.")
+                    .setComponents(Collections.emptyList()).queue();
+        } else {
+            event.getHook().editOriginal("Ação cancelada.")
+                    .setComponents(Collections.emptyList()).queue();
+        }
+    }
+
+
+    /**
+     * Lida com a lógica de upgrade de atributos após um clique no botão.
+     * Atualiza o personagem, gera uma nova imagem/embed e edita a mensagem original.
      */
     private static void handleAttributeUpgrade(ButtonInteractionEvent event, PersonagemService service, String userId, String attributeToUpgrade) {
+        event.deferEdit().queue();
         User user = event.getUser();
         Optional<Personagem> personagemOpt = service.buscarPorUsuario(userId);
 
@@ -86,18 +102,19 @@ public final class InteractionManager {
 
         try {
             byte[] newImageBytes = ImageGenerator.generatePersonagemAttributesImage(p);
-
-            // --- INÍCIO DA CORREÇÃO ---
-            // Chamamos o método com o nome correto: buildPersonagemEmbedWithImage
             MessageEmbed newEmbed = EmbedManager.buildPersonagemEmbedWithImage(p, user);
-            // --- FIM DA CORREÇÃO ---
 
             WebhookMessageEditAction editAction = event.getHook()
                     .editOriginalAttachments(FileUpload.fromData(newImageBytes, "ficha_atributos.png"))
                     .setEmbeds(newEmbed);
 
+            // Se os pontos acabarem após o upgrade, remove os botões.
+            // Caso contrário, mantém os botões para o próximo clique.
             if (p.getPontosDisponiveis() <= 0) {
                 editAction.setComponents(Collections.emptyList());
+            } else {
+                // Pega a fileira de botões da mensagem original para mantê-la
+                editAction.setComponents(event.getMessage().getActionRows());
             }
 
             editAction.queue();

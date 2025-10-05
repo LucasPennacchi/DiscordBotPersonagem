@@ -31,6 +31,9 @@ public final class ComandosRegister {
                 new FotoCommand(),
                 new DeletarCommand(),
                 new MostrarCommand(),
+                new ReflexoCommand(),
+                new ConectarClienteCommand(),
+
                 // Comandos de Administrador
                 new VerCommand(),
                 new UparCommand()
