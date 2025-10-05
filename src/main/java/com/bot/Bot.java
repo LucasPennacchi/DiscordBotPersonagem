@@ -10,6 +10,8 @@ import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 
 import java.io.IOException;
+import java.net.URI; // <-- NOVO IMPORT
+import java.net.URISyntaxException; // <-- NOVO IMPORT
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -35,7 +37,7 @@ public class Bot {
         }));
 
         String discordToken = System.getenv("DISCORD_TOKEN");
-        String databaseUrl = System.getenv("DB_URL"); // Usamos a variável do Render
+        String databaseUrl = System.getenv("DB_URL");
         String appUrl = System.getenv("APP_URL");
 
         if (discordToken == null || databaseUrl == null) {
@@ -45,20 +47,25 @@ public class Bot {
 
         APP_URL = appUrl;
 
-        // Extrai as credenciais da URL do Render de forma mais segura.
-        // Exemplo de URL do Render: postgres://user:password@host:port/database
-        String tempUrl = databaseUrl.substring("postgres://".length());
-        String[] credentialsAndHost = tempUrl.split("@");
-        String[] userAndPassword = credentialsAndHost[0].split(":");
-        String hostAndDb = credentialsAndHost[1];
+        PersonagemService personagemService;
+        try {
+            // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
+            // Usamos a classe URI para extrair as partes da URL de forma segura.
+            URI dbUri = new URI(databaseUrl);
 
-        String dbUser = userAndPassword[0];
-        String dbPass = userAndPassword[1];
-        String jdbcUrl = "jdbc:postgresql://" + hostAndDb;
+            String dbUser = dbUri.getUserInfo().split(":")[0];
+            String dbPass = dbUri.getUserInfo().split(":")[1];
+            String jdbcUrl = "jdbc:postgresql://" + dbUri.getHost() + ':' + dbUri.getPort() + dbUri.getPath();
 
-        System.out.println("Conectando ao banco de dados com o usuário: " + dbUser + " no host: " + hostAndDb);
+            System.out.println("Conectando ao banco de dados com o usuário: " + dbUser);
+            personagemService = new PersonagemService(jdbcUrl, dbUser, dbPass);
+            // --- FIM DA CORREÇÃO DEFINITIVA ---
 
-        PersonagemService personagemService = new PersonagemService(jdbcUrl, dbUser, dbPass);
+        } catch (URISyntaxException e) {
+            System.err.println("ERRO FATAL: A URL do banco de dados (DB_URL) está mal formatada.");
+            e.printStackTrace();
+            return;
+        }
 
         JDA jda = JDABuilder.createDefault(discordToken)
                 .enableIntents(GatewayIntent.GUILD_MEMBERS, GatewayIntent.GUILD_MESSAGES, GatewayIntent.MESSAGE_CONTENT, GatewayIntent.GUILD_MESSAGE_REACTIONS)
@@ -67,7 +74,7 @@ public class Bot {
                 .build()
                 .awaitReady();
 
-        int wsPort = 10000;
+        int wsPort = Integer.parseInt(System.getenv("PORT")); // O Render define a porta dinamicamente
         wsServer = new WebSocketServerManager(wsPort, jda);
         wsServer.start();
 
