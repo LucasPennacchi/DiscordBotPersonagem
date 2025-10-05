@@ -4,7 +4,6 @@ import com.bot.discord.ComandosListener;
 import com.bot.discord.ComandosRegister;
 import com.bot.discord.games.WebSocketServerManager;
 import com.bot.service.PersonagemService;
-import io.github.cdimascio.dotenv.Dotenv;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.entities.Activity;
@@ -14,25 +13,14 @@ import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/**
- * Classe principal e ponto de entrada da aplicação do bot.
- */
 public class Bot {
 
     public static final ExecutorService EXECUTOR = Executors.newCachedThreadPool();
     private static WebSocketServerManager wsServer;
     public static String APP_URL;
 
-    private Bot() {}
-
-    /**
-     * O método principal que inicia a aplicação.
-     * @param args Argumentos de linha de comando (não utilizados).
-     * @throws InterruptedException Se a JDA não conseguir iniciar.
-     */
     public static void main(String[] args) throws InterruptedException {
 
-        // Hook para garantir o desligamento limpo dos nossos serviços.
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             EXECUTOR.shutdown();
             try {
@@ -40,28 +28,34 @@ public class Bot {
                     wsServer.stop();
                     System.out.println("Servidor WebSocket parado.");
                 }
-            } catch (InterruptedException e) { // <-- CORREÇÃO: Removemos o IOException daqui
-                System.err.println("Erro ao parar o servidor WebSocket:");
+            } catch (InterruptedException e) {
                 e.printStackTrace();
-                // É uma boa prática restaurar o status de interrupção da thread
                 Thread.currentThread().interrupt();
             }
         }));
 
-        Dotenv dotenv = Dotenv.configure().load();
-        APP_URL = dotenv.get("APP_URL");
+        // Lemos as variáveis diretamente do ambiente do servidor (configurado no Render).
+        // Não usamos mais a biblioteca Dotenv.
+        String discordToken = System.getenv("DISCORD_TOKEN");
+        String dbUrl = System.getenv("DB_URL");
+        // O Render fornece usuário e senha dentro da URL, então não precisamos de variáveis separadas para eles.
+        String appUrl = System.getenv("APP_URL");
 
-        String discordToken = dotenv.get("DISCORD_TOKEN");
-        String dbUrl = dotenv.get("DB_URL");
-        String dbUser = dotenv.get("DB_USER");
-        String dbPass = dotenv.get("DB_PASS");
-
-        if (discordToken == null || dbUrl == null || dbUser == null || dbPass == null) {
-            System.err.println("ERRO FATAL: Uma ou mais variáveis essenciais não foram encontradas no arquivo .env.");
+        if (discordToken == null || dbUrl == null) {
+            System.err.println("ERRO FATAL: As variáveis de ambiente DISCORD_TOKEN e/ou DB_URL não foram encontradas.");
             return;
         }
 
-        PersonagemService personagemService = new PersonagemService(dbUrl, dbUser, dbPass);
+        APP_URL = appUrl;
+
+        // O Render configura o DB_URL com usuário e senha, mas nosso service espera separado.
+        // Vamos extrair as credenciais da URL do Render.
+        // Formato esperado: postgres://user:password@host:port/database
+        String dbUser = dbUrl.substring(dbUrl.indexOf("//") + 2, dbUrl.indexOf(":", dbUrl.indexOf("//") + 2));
+        String dbPass = dbUrl.substring(dbUrl.indexOf(":", dbUrl.indexOf(dbUser)) + 1, dbUrl.indexOf("@"));
+        String jdbcUrl = "jdbc:" + dbUrl.substring(0, dbUrl.indexOf("//")) + dbUrl.substring(dbUrl.indexOf("@") + 1);
+
+        PersonagemService personagemService = new PersonagemService(jdbcUrl, dbUser, dbPass);
 
         JDA jda = JDABuilder.createDefault(discordToken)
                 .enableIntents(GatewayIntent.GUILD_MEMBERS, GatewayIntent.GUILD_MESSAGES, GatewayIntent.MESSAGE_CONTENT, GatewayIntent.GUILD_MESSAGE_REACTIONS)
@@ -70,7 +64,8 @@ public class Bot {
                 .build()
                 .awaitReady();
 
-        int wsPort = 8080;
+        // A porta 10000 é frequentemente usada por padrão em serviços de hospedagem como o Render.
+        int wsPort = 10000;
         wsServer = new WebSocketServerManager(wsPort, jda);
         wsServer.start();
 
